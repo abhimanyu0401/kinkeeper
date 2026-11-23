@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Scam Shield</string>
+    <string name="share_target_title">Scam Shield</string>
+    <string name="analyzing_title">Analyzing with Scam Shield...</string>
+    <string name="error_no_content">We couldn\'t find any content to analyze.</string>
+    <string name="error_unsupported">Scam Shield can\'t analyze this type of content yet.</string>
+</resources>
