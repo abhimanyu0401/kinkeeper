@@ -366,6 +366,7 @@ export default function Home() {
   const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageMimeType, setImageMimeType] = useState<string>("image/jpeg");
   const [audioData, setAudioData] = useState<{ base64: string; mimeType: string; fileName?: string } | null>(null);
   
   const [loading, setLoading] = useState(false);
@@ -506,6 +507,7 @@ export default function Home() {
     setText("");
     setImageFile(null);
     setImagePreview(null);
+    setImageMimeType("image/jpeg");
     setAudioData(null);
     setResult(null);
     setShowDetailedAnalysis(false);
@@ -522,25 +524,70 @@ export default function Home() {
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2.5 * 1024 * 1024) {
-        setError(`Image file too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 2.5MB.`);
-        setImageFile(null);
-        setImagePreview(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-        return;
-      }
       setError(null);
       setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+
+      // Leave small images (under ~300KB) untouched
+      if (file.size <= 300 * 1024) {
+        setImageMimeType(file.type || "image/png");
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // Re-encode larger images with canvas: max 1280px on longest side, JPEG 0.8
+      setImageMimeType("image/jpeg");
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const maxDimension = 1280;
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          // Fill white background first so transparent PNGs don't turn black in JPEG
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          setImagePreview(dataUrl);
+        } else {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setImagePreview(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+        }
       };
-      reader.readAsDataURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        setError("Failed to process image. Please try a different screenshot.");
+        setImageFile(null);
+        setImagePreview(null);
+      };
+      img.src = objectUrl;
     } else {
       setImageFile(null);
       setImagePreview(null);
+      setImageMimeType("image/jpeg");
     }
   }
 
@@ -564,7 +611,7 @@ export default function Home() {
         const base64Data = imagePreview.split(",")[1];
         payload = {
           imageBase64: base64Data,
-          mimeType: imageFile.type,
+          mimeType: imageMimeType,
           language,
         };
       } else if (activeTab === "audio" && audioData) {
