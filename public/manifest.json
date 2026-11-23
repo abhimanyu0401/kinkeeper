@@ -1,0 +1,25 @@
+{
+  "name": "Scam Shield",
+  "short_name": "Scam Shield",
+  "description": "AI-powered real-time scam and fraud detection.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090E",
+  "theme_color": "#1D68FF",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

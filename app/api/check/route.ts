@@ -12,6 +12,7 @@ import { geminiProvider } from "@/lib/ai/providers/gemini";
 import { routeScamAnalysis } from "@/lib/ai/router";
 import { BadRequestError } from "@/lib/ai/errors";
 import type { FinalCheckResponse } from "@/lib/ai/types";
+import { normalizeSharedInput } from "@/lib/ai/share-normalizer";
 
 // ---------------------------------------------------------------------------
 // Safe Browsing test seam
@@ -86,7 +87,28 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Normalization & Multimodal Convergence (consuming tracker deadline)
-    const normalized = await normalizeRequestInput(body as any, tracker);
+    let payloadToNormalize = body as any;
+    if (payloadToNormalize && typeof payloadToNormalize === "object") {
+      if (payloadToNormalize.sharedInput) {
+        const shared = normalizeSharedInput(payloadToNormalize.sharedInput);
+        payloadToNormalize = {
+          text: shared.text,
+          language: shared.language,
+          imageBase64: shared.imageBase64,
+          mimeType: shared.mimeType,
+        };
+      } else if (payloadToNormalize.source === "android_share" || (payloadToNormalize.content && !payloadToNormalize.text)) {
+        const shared = normalizeSharedInput(payloadToNormalize);
+        payloadToNormalize = {
+          text: shared.text,
+          language: shared.language,
+          imageBase64: shared.imageBase64,
+          mimeType: shared.mimeType,
+        };
+      }
+    }
+
+    const normalized = await normalizeRequestInput(payloadToNormalize, tracker);
 
     // Check if Redis KV is configured (fail-open to in-memory mocks when unconfigured to prevent DNS/network/retry timeouts in CI/test runs)
     const isRedisConfigured = Boolean(
