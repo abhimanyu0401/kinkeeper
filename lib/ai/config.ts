@@ -44,6 +44,22 @@ import type { ModelCapabilities } from "./types";
 export const GLOBAL_AI_DEADLINE_MS = 20_000;
 
 /**
+ * Hard ceiling on the total AI orchestration phase for multimodal inputs (image OCR / audio transcription + analysis).
+ */
+export const MULTIMODAL_GLOBAL_DEADLINE_MS = 40_000;
+
+/**
+ * Per-model timeout budget for multimodal processing (OCR / transcription).
+ */
+export const MULTIMODAL_PER_MODEL_TIMEOUT_MS = 12_000;
+
+/**
+ * Budget reserved exclusively for the second-stage scam analysis after OCR/transcription.
+ * Guarantees OCR cannot consume more than ~60% of the total multimodal deadline budget.
+ */
+export const MIN_ANALYSIS_RESERVED_MS = 14_000;
+
+/**
  * Minimum remaining budget required before initiating a new provider network
  * request. If the remaining global budget is at or below this value, the router
  * must NOT open a new connection and must proceed directly to the deterministic

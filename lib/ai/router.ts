@@ -40,6 +40,8 @@ import {
 } from "./errors";
 import {
   getEligibleModels,
+  MULTIMODAL_PER_MODEL_TIMEOUT_MS,
+  MIN_ANALYSIS_RESERVED_MS,
   type ModelDefinition,
 } from "./config";
 import {
@@ -532,7 +534,7 @@ export async function routeOCR(
   let lastError: AIProviderError | null = null;
 
   for (const model of eligibleModels) {
-    if (!tracker.canAttempt()) {
+    if (!tracker.canAttempt() || tracker.remainingMs() <= MIN_ANALYSIS_RESERVED_MS) {
       telemetry.modelsSkipped.push({
         modelId: model.modelId,
         provider: model.provider,
@@ -583,7 +585,11 @@ export async function routeOCR(
         continue;
       }
 
-      const abortHandle = tracker.createAbortHandle(model.maxTimeoutMs);
+      const ocrTimeoutMs = Math.min(
+        MULTIMODAL_PER_MODEL_TIMEOUT_MS,
+        Math.max(0, tracker.remainingMs() - MIN_ANALYSIS_RESERVED_MS)
+      );
+      const abortHandle = tracker.createAbortHandle(ocrTimeoutMs);
       telemetry.modelsAttempted.push(model.modelId);
       telemetry.attemptCount++;
 
@@ -716,7 +722,7 @@ export async function routeTranscription(
   let lastError: AIProviderError | null = null;
 
   for (const model of eligibleModels) {
-    if (!tracker.canAttempt()) {
+    if (!tracker.canAttempt() || tracker.remainingMs() <= MIN_ANALYSIS_RESERVED_MS) {
       telemetry.modelsSkipped.push({
         modelId: model.modelId,
         provider: model.provider,
@@ -767,7 +773,11 @@ export async function routeTranscription(
         continue;
       }
 
-      const abortHandle = tracker.createAbortHandle(model.maxTimeoutMs);
+      const audioTimeoutMs = Math.min(
+        MULTIMODAL_PER_MODEL_TIMEOUT_MS,
+        Math.max(0, tracker.remainingMs() - MIN_ANALYSIS_RESERVED_MS)
+      );
+      const abortHandle = tracker.createAbortHandle(audioTimeoutMs);
       telemetry.modelsAttempted.push(model.modelId);
       telemetry.attemptCount++;
 

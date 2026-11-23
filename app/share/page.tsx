@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers/AuthProvider";
 import { AuthModal } from "@/app/components/AuthModal";
@@ -33,8 +33,12 @@ function ShareContent() {
   const [error, setError] = useState<string | null>(null);
   const [copiedAlert, setCopiedAlert] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const hasAnalyzedRef = useRef<boolean>(false);
 
   useEffect(() => {
+    if (hasAnalyzedRef.current) return;
+    hasAnalyzedRef.current = true;
+
     // 1. Try reading from native Android bridge first (vital for images / screenshots)
     let nativePayload: { type?: string; content?: string; imageBase64?: string; mimeType?: string } | null = null;
     if (typeof window !== "undefined" && (window as any).ScamShieldNative?.getSharedPayload) {
@@ -103,6 +107,9 @@ function ShareContent() {
     setError(null);
     setResult(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45_000);
+
     try {
       const bodyPayload: Record<string, unknown> = {
         source: "android_share",
@@ -121,6 +128,7 @@ function ShareContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyPayload),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -143,12 +151,15 @@ function ShareContent() {
       const data: CheckResult = await response.json();
       setResult(data);
     } catch (err: unknown) {
-      if (err instanceof TypeError && err.message.includes("fetch")) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Analysis is taking longer than usual. Please try again.");
+      } else if (err instanceof TypeError && err.message.includes("fetch")) {
         setError("We couldn't connect to Scam Shield. Check your internet connection and try again.");
       } else {
         setError(err instanceof Error ? err.message : "An unknown error occurred.");
       }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }
@@ -325,6 +336,12 @@ function ShareContent() {
         {/* Result State */}
         {!loading && result && (
           <div className="space-y-4">
+            {(result.analysisMode !== "ai" || result.isDegraded === true) && (
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-300 font-medium leading-relaxed">
+                ⚠️ Limited analysis: the AI service was slow, so this result uses basic checks only. Try again for a full analysis.
+              </div>
+            )}
+
             {/* 1. Main Risk Verdict Card */}
             <div
               className={`rounded-3xl p-6 sm:p-8 text-center border transition-all ${
